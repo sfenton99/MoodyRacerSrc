@@ -1,6 +1,6 @@
 from setuptools import setup
 
-package_name = 'lab6_pkg'
+package_name = 'rrt'
 
 setup(
     name=package_name,
@@ -20,7 +20,7 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'rrt_node = lab6_pkg.rrt_node:main',
+            'rrt_node = rrt.rrt_node:main',
         ],
     },
 )
