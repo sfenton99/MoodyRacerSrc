@@ -48,9 +48,9 @@ private:
     rclcpp::Publisher<ackermann_msgs::msg::AckermannDriveStamped>::SharedPtr drivepub;
     //TUNABLE PARAMETERS
     double L = 2; //lookahead distance (initial goal)
-    double L2 = 0.5; //pose RRT
+    double L2 = 0.2; //post RRT
     double PGain = 0.3;
-    double velocity = 0.5;
+    double velocity = 1.5;
     int step_size = 10; //step size for waypoint selection
     double max_steer = 3.14/2;
     double min_steer = -3.14/2;

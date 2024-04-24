@@ -16,8 +16,8 @@ RRT::RRT(): rclcpp::Node("rrt_node"), x_dist(0, gridHeight - 1), y_dist(-gridWid
     // ROS publishers
     // TODO: create publishers for the the drive topic, and other topics you might need
     // ROS subscribers
-    // TODO: create subscribers as you need
-    string pose_topic = "ego_racecar/odom";
+    // TODO: create subscribers as you needf
+    string pose_topic = "/pf/pose/odom";
     string scan_topic = "/scan";
     string occupancy_topic = "/local_occupancy_map";
     string goal_topic = "/vis_goal";
@@ -36,7 +36,7 @@ RRT::RRT(): rclcpp::Node("rrt_node"), x_dist(0, gridHeight - 1), y_dist(-gridWid
 
     RCLCPP_INFO(rclcpp::get_logger("RRT"), "%s\n", "Created new RRT Object.");
 
-    string filePath = "/sim_ws/src/RRT_pkg/data/robot_log.csv";
+    string filePath = "/home/moody/f1tenth_ws/waypoints/tunerrt.csv";
     loadLogData(filePath);
     viz_timer_ = this->create_wall_timer(5s, std::bind(&RRT::drawLogData, this));
 

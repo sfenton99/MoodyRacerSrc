@@ -10,7 +10,7 @@ from geometry_msgs.msg import PoseStamped
 from nav_msgs.msg import Odometry
 
 
-file = open('/home/moody/f1tenth_ws/waypoints/waypoints.csv', 'w+')
+file = open('/home/moody/f1tenth_ws/waypoints/tunerrt.csv', 'w+')
 
 class LogWaypoints(Node):
 
@@ -32,12 +32,11 @@ class LogWaypoints(Node):
 
         euler = euler_from_quaternion(quaternion)
 
-        velocity = data.twist.twist.linear.x
+        # velocity = data.twist.twist.linear.x
 
-        file.write('%f, %f, %f, %f\n' % (data.pose.pose.position.x,
+        file.write('%f, %f, %f\n' % (data.pose.pose.position.x,
                                         data.pose.pose.position.y,
-                                        euler[2],
-                                        velocity))
+                                        euler[2]))
         print('writting....')
 
 def shutdown():
