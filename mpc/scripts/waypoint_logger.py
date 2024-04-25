@@ -10,7 +10,7 @@ from geometry_msgs.msg import PoseStamped
 from nav_msgs.msg import Odometry
 
 
-file = open('/home/moody/f1tenth_ws/waypoints/tunerrt.csv', 'w+')
+file = open('/root/sim_ws/src/logs/tunerrt.csv', 'w+')
 
 class LogWaypoints(Node):
 
@@ -19,7 +19,7 @@ class LogWaypoints(Node):
         print('------- BEGINING LOGGER ------')
         self.subscription = self.create_subscription(
             Odometry,
-            '/pf/pose/odom',
+            '/ego_racecar/odom',
             self.save_waypoint,
             10)
         self.subscription  # prevent unused variable warning

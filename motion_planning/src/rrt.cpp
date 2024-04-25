@@ -17,7 +17,7 @@ RRT::RRT(): rclcpp::Node("rrt_node"), x_dist(0, gridHeight - 1), y_dist(-gridWid
     // TODO: create publishers for the the drive topic, and other topics you might need
     // ROS subscribers
     // TODO: create subscribers as you needf
-    string pose_topic = "/pf/pose/odom";
+    string pose_topic = "/ego_racecar/odom";
     string scan_topic = "/scan";
     string occupancy_topic = "/local_occupancy_map";
     string goal_topic = "/vis_goal";
@@ -35,20 +35,21 @@ RRT::RRT(): rclcpp::Node("rrt_node"), x_dist(0, gridHeight - 1), y_dist(-gridWid
       scan_topic, 1, std::bind(&RRT::scan_callback, this, std::placeholders::_1));
 
     RCLCPP_INFO(rclcpp::get_logger("RRT"), "%s\n", "Created new RRT Object.");
-
-    string filePath = "/home/moody/f1tenth_ws/waypoints/tunerrt_1.csv";
+    
+    string filePath = "/root/sim_ws/src/logs/tunerrt.csv";
     loadLogData(filePath);
     viz_timer_ = this->create_wall_timer(5s, std::bind(&RRT::drawLogData, this));
 
-    this->declare_parameter<double>("L", 3); //lookahead distance
-    this->declare_parameter<double>("L2", 0.5); //lookahead distance
-    this->declare_parameter<double>("p_gain", 0.05);
-    this->declare_parameter<double>("max_velocity", 2.0);
+    this->declare_parameter<double>("L", 2); //lookahead distance
+    this->declare_parameter<double>("L2", 0.2); //lookahead distance
+    this->declare_parameter<double>("p_gain", 0.1);
+    this->declare_parameter<double>("max_velocity", 1.5);
     this->declare_parameter<double>("min_velocity", 1);
     this->declare_parameter<double>("max_steer", 3.14/2);
     this->declare_parameter<double>("min_steer", -3.14/2);
     this->declare_parameter<int>("step_size", 10); //step size for waypoint selection
-    this->declare_parameter<bool>("optimize", true); //RRT*
+    this->declare_parameter<bool>("optimize", true); // RRT*
+    this->declare_parameter<int>("bufferCells", 2); // RRT*
 
     // get parameters
     L = this->get_parameter("L").get_value<double>();
@@ -60,6 +61,7 @@ RRT::RRT(): rclcpp::Node("rrt_node"), x_dist(0, gridHeight - 1), y_dist(-gridWid
     min_steer = this->get_parameter("min_steer").get_value<double>();
     step_size = this->get_parameter("step_size").get_value<int>();
     optimize = this->get_parameter("optimize").get_value<bool>();
+    bufferCells = this->get_parameter("bufferCells").get_value<int>();
 
 }
 
@@ -150,8 +152,6 @@ vector<float> preprocess_lidar(const sensor_msgs::msg::LaserScan::ConstSharedPtr
     }
 
 
-
-
 double dist(RRT_Node &node, std::vector<double> &sampled_point) {
     double sum_of_squares = (node.x - sampled_point[0])*(node.x - sampled_point[0]) + (node.y - sampled_point[1])*(node.y - sampled_point[1]);
     return std::sqrt(sum_of_squares);
@@ -175,43 +175,44 @@ void RRT::scan_callback(const sensor_msgs::msg::LaserScan::ConstSharedPtr scan_m
         float curr_angle = scan_msg->angle_min + i*scan_msg->angle_increment;
 
         if (curr_angle < 3.14/2 && curr_angle > -3.14/2){
-        int x_point = int(cos(curr_angle)*ranges_processed[i]/resolution);
-        int y_point = int(gridWidth/2 + sin(curr_angle)*ranges_processed[i]/resolution);
+            int x_point = int(cos(curr_angle)*ranges_processed[i]/resolution);
+            int y_point = int(gridWidth/2 + sin(curr_angle)*ranges_processed[i]/resolution);
 
-        if(x_point < gridWidth && x_point > 0 && y_point > 0 && y_point < gridHeight){
-        Occupancy[x_point + gridWidth*y_point] = 100;
+            if(x_point < gridWidth && x_point > 0 && y_point > 0 && y_point < gridHeight){
+                Occupancy[x_point + gridWidth*y_point] = 100;
 
-        // expand occupancyy around cell 
-        for (int bx = -bufferCells; bx <= bufferCells; ++bx) {
-            for (int by = -bufferCells; by <= bufferCells; ++by) {
-                int nx = x_point + bx; // New x-coordinate considering the buffer
-                int ny = y_point + by; // New y-coordinate considering the buffer
+                // expand occupancyy around cell 
+                for (int bx = -bufferCells; bx <= bufferCells; ++bx) {
+                    for (int by = -bufferCells; by <= bufferCells; ++by) {
+                        int nx = x_point + bx; // New x-coordinate considering the buffer
+                        int ny = y_point + by; // New y-coordinate considering the buffer
 
-                // Check if the new points are within the grid bounds
-                if (nx >= 0 && nx < gridWidth && ny >= 0 && ny < gridHeight) {
-                    Occupancy[nx + ny * gridWidth] = 100; // Mark as occupied
+                        // Check if the new points are within the grid bounds
+                        if (nx >= 0 && nx < gridWidth && ny >= 0 && ny < gridHeight) {
+                            Occupancy[nx + ny * gridWidth] = 100; // Mark as occupied
+                        }
+                    }
+                }
+
+            }
         }
     }
-}
 
-        }
-        }
-    }
-
-    Occupancy.clear();
 
     // ----- NOVIZ --------
-    // nav_msgs::msg::OccupancyGrid grid_msg;
-    // grid_msg.data = Occupancy;
-    // string frame = "ego_racecar/base_link";
-    // grid_msg.header.frame_id = frame;
-    // grid_msg.info.width = gridWidth;
-    // grid_msg.info.height = gridHeight;
-    // grid_msg.info.resolution = resolution;  //can change later if not fast enough
-    // grid_msg.info.origin.position.y = -(gridWidth*resolution)/2;
-    // grid_msg.info.origin.position.z = 0.1;
-    // grid_msg.header.stamp = this->get_clock()->now();
-    // grid_pub_->publish(grid_msg);
+    nav_msgs::msg::OccupancyGrid grid_msg;
+    grid_msg.data = Occupancy;
+    string frame = "ego_racecar/base_link";
+    grid_msg.header.frame_id = frame;
+    grid_msg.info.width = gridWidth;
+    grid_msg.info.height = gridHeight;
+    grid_msg.info.resolution = resolution;  //can change later if not fast enough
+    grid_msg.info.origin.position.y = -(gridWidth*resolution)/2;
+    grid_msg.info.origin.position.z = 0.1;
+    grid_msg.header.stamp = this->get_clock()->now();
+    grid_pub_->publish(grid_msg);
+
+    Occupancy.clear();
 }
 
 void RRT::visualize_goal(float &x, float &y){
@@ -278,27 +279,27 @@ std::vector<double> RRT::select_goal(vector<RRT_Node> &pathfound, const geometry
         std::vector<double> target = {pathfound[goal_index].x, pathfound[goal_index].y};
 
         // ----- NOVIZ --------
-        // target_marker.header.frame_id = "ego_racecar/base_link";;
-        // target_marker.header.stamp = this->get_clock()->now();
-        // target_marker.ns = "target";
-        // target_marker.type = visualization_msgs::msg::Marker::SPHERE;
-        // target_marker.action = visualization_msgs::msg::Marker::ADD;
-        // target_marker.pose.position.x = target[0]*resolution;
-        // target_marker.pose.position.y = target[1]*resolution;
-        // target_marker.pose.position.z = 0.1;
-        // target_marker.pose.orientation.x = 0.0;
-        // target_marker.pose.orientation.y = 0.0;
-        // target_marker.pose.orientation.z = 0.0;
-        // target_marker.pose.orientation.w = 1.0;
-        // target_marker.scale.x = 0.2;
-        // target_marker.scale.y = 0.2;
-        // target_marker.scale.z = 0.2;
-        // target_marker.color.a = 1.0;
-        // target_marker.color.r = 0.0;
-        // target_marker.color.g = 1.0;
-        // target_marker.color.b = 0.0;
-        // goal_pub_->publish(target_marker);
-        // visualize_path(pathfound);
+        target_marker.header.frame_id = "ego_racecar/base_link";;
+        target_marker.header.stamp = this->get_clock()->now();
+        target_marker.ns = "target";
+        target_marker.type = visualization_msgs::msg::Marker::SPHERE;
+        target_marker.action = visualization_msgs::msg::Marker::ADD;
+        target_marker.pose.position.x = target[0]*resolution;
+        target_marker.pose.position.y = target[1]*resolution;
+        target_marker.pose.position.z = 0.1;
+        target_marker.pose.orientation.x = 0.0;
+        target_marker.pose.orientation.y = 0.0;
+        target_marker.pose.orientation.z = 0.0;
+        target_marker.pose.orientation.w = 1.0;
+        target_marker.scale.x = 0.2;
+        target_marker.scale.y = 0.2;
+        target_marker.scale.z = 0.2;
+        target_marker.color.a = 1.0;
+        target_marker.color.r = 0.0;
+        target_marker.color.g = 1.0;
+        target_marker.color.b = 0.0;
+        goal_pub_->publish(target_marker);
+        visualize_path(pathfound);
 
         return target;
 }
@@ -313,7 +314,7 @@ void RRT::pure_pursuit(vector<RRT_Node> &pathfound, const nav_msgs::msg::Odometr
 
     // Transform goal point to vehicle frame of reference
     double dy = target[1];
-    double  gamma = 2*dy / pow(L2,2);
+    double gamma = 2*dy / pow(L2,2);
 
     double steer_angle = clamp(PGain*gamma, min_steer, max_steer);
 
@@ -341,6 +342,7 @@ double quaternionToYaw(const geometry_msgs::msg::Quaternion& quaternion) {
 
     return yaw;
     }
+
 void RRT::pose_callback(const nav_msgs::msg::Odometry::ConstSharedPtr pose_msg) {
     // The pose callback when subscribed to particle filter's inferred pose
     // The RRT main loop happens here
