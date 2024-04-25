@@ -98,7 +98,7 @@ private:
     const int num_samples = 400; //rrt
     const double epsilon = 10; //rrt in grid world
     std::vector<signed char> Occupancy;
-    int bufferCells = 8;
+    int bufferCells = 4;
 
     // random generator, use this
     std::mt19937 gen;

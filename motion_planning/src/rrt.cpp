@@ -40,10 +40,10 @@ RRT::RRT(): rclcpp::Node("rrt_node"), x_dist(0, gridHeight - 1), y_dist(-gridWid
     loadLogData(filePath);
     viz_timer_ = this->create_wall_timer(5s, std::bind(&RRT::drawLogData, this));
 
-    this->declare_parameter<double>("L", 2.5); //lookahead distance
-    this->declare_parameter<double>("L2", 0.5); //lookahead distance
-    this->declare_parameter<double>("p_gain", 0.05);
-    this->declare_parameter<double>("max_velocity", 2.0);
+    this->declare_parameter<double>("L", 2); //lookahead distance
+    this->declare_parameter<double>("L2", 0.2); //lookahead distance
+    this->declare_parameter<double>("p_gain", 0.1);
+    this->declare_parameter<double>("max_velocity", 2);
     this->declare_parameter<double>("min_velocity", 1);
     this->declare_parameter<double>("max_steer", 3.14/2);
     this->declare_parameter<double>("min_steer", -3.14/2);
@@ -341,7 +341,7 @@ double quaternionToYaw(const geometry_msgs::msg::Quaternion& quaternion) {
 
     return yaw;
     }
-void RRT::pose_callback(const geometry_msg::msg::PoseStamped::ConstSharedPtr pose_msg) {
+void RRT::pose_callback(const geometry_msgs::msg::PoseStamped::ConstSharedPtr pose_msg) {
     // The pose callback when subscribed to particle filter's inferred pose
     // The RRT main loop happens here
     // Args:
@@ -396,8 +396,8 @@ void RRT::pose_callback(const geometry_msg::msg::PoseStamped::ConstSharedPtr pos
 
     float goal_x = dx_trans/resolution;
     float goal_y = dy_trans/resolution;
-    float scaled_goal_x = float(dx_trans);
-    float scaled_goal_y = float(dy_trans);
+    // float scaled_goal_x = float(dx_trans);
+    // float scaled_goal_y = float(dy_trans);
 
     // visualize_goal(scaled_goal_x, scaled_goal_y); //real world coordinates
 
@@ -417,6 +417,9 @@ void RRT::pose_callback(const geometry_msg::msg::PoseStamped::ConstSharedPtr pos
         }
         // sample new point
         std::vector<double> x_rand = sample();
+        if(k % 20 == 0){
+            x_rand = {double(goal_x), double(goal_y)};
+        }
 
         // find nearest member in tree
         int x_near_idx = nearest(tree, x_rand); // test next
