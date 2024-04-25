@@ -63,8 +63,8 @@ private:
     double max_steer;
     double min_steer;
     bool optimize;
-    void pure_pursuit(vector<RRT_Node> &path_found, const nav_msgs::msg::Odometry::ConstPtr &pose_msg);
-    std::vector<double> select_goal(vector<RRT_Node> &pathfound, const geometry_msgs::msg::Pose &pose_curr);
+    void pure_pursuit(vector<RRT_Node> &path_found, const geometry_msgs::msg::PoseStamped::ConstPtr &pose_msg);
+    std::vector<double> select_goal(vector<RRT_Node> &pathfound);
 
 
     // TODO: add the publishers and subscribers you need
@@ -78,7 +78,7 @@ private:
     rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr pathpub;
     rclcpp::TimerBase::SharedPtr viz_timer_;
 
-    rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr pose_sub_;
+    rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr pose_sub_;
     rclcpp::Subscription<sensor_msgs::msg::LaserScan>::SharedPtr scan_sub_;
     vector<double> x_traj;
     vector<double> y_traj;
@@ -112,7 +112,7 @@ private:
     void visualize_path(vector<RRT_Node> &path_found);
     // callbacks
     // where rrt actually happens
-    void pose_callback(const nav_msgs::msg::Odometry::ConstSharedPtr pose_msg);
+    void pose_callback(const geometry_msgs::msg::PoseStamped::ConstSharedPtr pose_msg);
 
     // updates occupancy grid
     void scan_callback(const sensor_msgs::msg::LaserScan::ConstSharedPtr scan_msg);

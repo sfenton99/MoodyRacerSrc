@@ -17,7 +17,7 @@ RRT::RRT(): rclcpp::Node("rrt_node"), x_dist(0, gridHeight - 1), y_dist(-gridWid
     // TODO: create publishers for the the drive topic, and other topics you might need
     // ROS subscribers
     // TODO: create subscribers as you needf
-    string pose_topic = "/pf/pose/odom";
+    string pose_topic = "/pf/viz/inferred_pose";
     string scan_topic = "/scan";
     string occupancy_topic = "/local_occupancy_map";
     string goal_topic = "/vis_goal";
@@ -29,18 +29,18 @@ RRT::RRT(): rclcpp::Node("rrt_node"), x_dist(0, gridHeight - 1), y_dist(-gridWid
     grid_pub_ = this->create_publisher<nav_msgs::msg::OccupancyGrid>(occupancy_topic, 10);
     pathpub = this->create_publisher<visualization_msgs::msg::MarkerArray>(traj_topic,10);
 
-    pose_sub_ = this->create_subscription<nav_msgs::msg::Odometry>(
+    pose_sub_ = this->create_subscription<geometry_msgs::msg::PoseStamped>(
       pose_topic, 1, std::bind(&RRT::pose_callback, this, std::placeholders::_1));
     scan_sub_ = this->create_subscription<sensor_msgs::msg::LaserScan>(
       scan_topic, 1, std::bind(&RRT::scan_callback, this, std::placeholders::_1));
 
     RCLCPP_INFO(rclcpp::get_logger("RRT"), "%s\n", "Created new RRT Object.");
 
-    string filePath = "/home/moody/f1tenth_ws/waypoints/tunerrt_1.csv";
+    string filePath = "/home/moody/f1tenth_ws/waypoints/tunerrt.csv";
     loadLogData(filePath);
     viz_timer_ = this->create_wall_timer(5s, std::bind(&RRT::drawLogData, this));
 
-    this->declare_parameter<double>("L", 3); //lookahead distance
+    this->declare_parameter<double>("L", 2.5); //lookahead distance
     this->declare_parameter<double>("L2", 0.5); //lookahead distance
     this->declare_parameter<double>("p_gain", 0.05);
     this->declare_parameter<double>("max_velocity", 2.0);
@@ -262,7 +262,7 @@ void RRT::visualize_path(vector<RRT_Node> &pathfound){
         path_marker.points.clear(); 
 }
 
-std::vector<double> RRT::select_goal(vector<RRT_Node> &pathfound, const geometry_msgs::msg::Pose &pose_curr){
+std::vector<double> RRT::select_goal(vector<RRT_Node> &pathfound){
         int goal_index;
         size_t closest_index;
         double min_dist = 1000;
@@ -306,10 +306,10 @@ std::vector<double> RRT::select_goal(vector<RRT_Node> &pathfound, const geometry
 double clamp(double value, double min_value, double max_value) {
         return std::max(min_value, std::min(value, max_value));}
 
-void RRT::pure_pursuit(vector<RRT_Node> &pathfound, const nav_msgs::msg::Odometry::ConstPtr &pose_msg){
-    auto pose = pose_msg->pose.pose;
+void RRT::pure_pursuit(vector<RRT_Node> &pathfound, const geometry_msgs::msg::PoseStamped::ConstPtr &pose_msg){
+    auto pose = pose_msg->pose;
     std::vector<double> target;
-    target = select_goal(pathfound, pose);
+    target = select_goal(pathfound);
 
     // Transform goal point to vehicle frame of reference
     double dy = target[1];
@@ -341,7 +341,7 @@ double quaternionToYaw(const geometry_msgs::msg::Quaternion& quaternion) {
 
     return yaw;
     }
-void RRT::pose_callback(const nav_msgs::msg::Odometry::ConstSharedPtr pose_msg) {
+void RRT::pose_callback(const geometry_msg::msg::PoseStamped::ConstSharedPtr pose_msg) {
     // The pose callback when subscribed to particle filter's inferred pose
     // The RRT main loop happens here
     // Args:
@@ -352,8 +352,8 @@ void RRT::pose_callback(const nav_msgs::msg::Odometry::ConstSharedPtr pose_msg) 
     // std::cout << "HERE" << endl;
     int goal_index;
     size_t closest_index;
-    double curr_x = pose_msg->pose.pose.position.x;
-    double curr_y = pose_msg->pose.pose.position.y;
+    double curr_x = pose_msg->pose.position.x;
+    double curr_y = pose_msg->pose.position.y;
     double min_dist = 1000;
     double len;
 
@@ -388,7 +388,7 @@ void RRT::pose_callback(const nav_msgs::msg::Odometry::ConstSharedPtr pose_msg) 
     // transform goal point to vehicle frame of reference
     double dx = x_traj[goal_index] - curr_x;
     double dy = y_traj[goal_index] - curr_y;
-    double yaw = quaternionToYaw(pose_msg->pose.pose.orientation);
+    double yaw = quaternionToYaw(pose_msg->pose.orientation);
     double dx_trans = dx*cos(yaw) + dy*sin(yaw);
     double dy_trans = -dx*sin(yaw) + dy*cos(yaw);
 
