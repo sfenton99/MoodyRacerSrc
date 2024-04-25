@@ -193,19 +193,21 @@ void RRT::scan_callback(const sensor_msgs::msg::LaserScan::ConstSharedPtr scan_m
         }
         }
     }
-    nav_msgs::msg::OccupancyGrid grid_msg;
-    grid_msg.data = Occupancy;
-    string frame = "ego_racecar/base_link";
-    grid_msg.header.frame_id = frame;
-    grid_msg.info.width = gridWidth;
-    grid_msg.info.height = gridHeight;
-    grid_msg.info.resolution = resolution;  //can change later if not fast enough
-    grid_msg.info.origin.position.y = -(gridWidth*resolution)/2;
-    grid_msg.info.origin.position.z = 0.1;
-    grid_msg.header.stamp = this->get_clock()->now();
-    // grid_pub_->publish(grid_msg);
+
     Occupancy.clear();
-    
+
+    // ----- NOVIZ --------
+    // nav_msgs::msg::OccupancyGrid grid_msg;
+    // grid_msg.data = Occupancy;
+    // string frame = "ego_racecar/base_link";
+    // grid_msg.header.frame_id = frame;
+    // grid_msg.info.width = gridWidth;
+    // grid_msg.info.height = gridHeight;
+    // grid_msg.info.resolution = resolution;  //can change later if not fast enough
+    // grid_msg.info.origin.position.y = -(gridWidth*resolution)/2;
+    // grid_msg.info.origin.position.z = 0.1;
+    // grid_msg.header.stamp = this->get_clock()->now();
+    // grid_pub_->publish(grid_msg);
 }
 
 void RRT::visualize_goal(float &x, float &y){
@@ -240,14 +242,11 @@ void RRT::visualize_path(vector<RRT_Node> &pathfound){
     path_marker.ns = "path_to_goal";
     path_marker.type = visualization_msgs::msg::Marker::LINE_STRIP;
     path_marker.action = visualization_msgs::msg::Marker::ADD;
-
     path_marker.scale.x = 0.05;
-
     path_marker.color.a = 1.0;
     path_marker.color.r = 0.0;
     path_marker.color.g = 0.0;
     path_marker.color.b = 1.0;
-
     geometry_msgs::msg::Point path_point = geometry_msgs::msg::Point();
     path_point.z = 0.1;
     for(size_t i=0; i<pathfound.size(); i++){
@@ -256,54 +255,50 @@ void RRT::visualize_path(vector<RRT_Node> &pathfound){
         path_marker.points.push_back(path_point);
     }   
         goal_pub_->publish(path_marker);
-        
-        path_marker.points.clear();
-        
+        path_marker.points.clear(); 
 }
+
 std::vector<double> RRT::select_goal(vector<RRT_Node> &pathfound, const geometry_msgs::msg::Pose &pose_curr){
         int goal_index;
         size_t closest_index;
         double min_dist = 1000;
         double len;
-
         // ensure lookahead distance enforced remove curr pose
         for(size_t i=0; i<pathfound.size(); i++){
             len = sqrt(pow((pathfound[i].x* resolution),2) + pow((pathfound[i].y* resolution),2));
-
             if (len > L2) {
                 goal_index = int(i);
                 break;
             }
         }
-
         std::vector<double> target = {pathfound[goal_index].x, pathfound[goal_index].y};
-        target_marker.header.frame_id = "ego_racecar/base_link";;
-        target_marker.header.stamp = this->get_clock()->now();
-        target_marker.ns = "target";
-        target_marker.type = visualization_msgs::msg::Marker::SPHERE;
-        target_marker.action = visualization_msgs::msg::Marker::ADD;
-        target_marker.pose.position.x = target[0]*resolution;
-        target_marker.pose.position.y = target[1]*resolution;
-        // target_marker.pose.position.x = gridHeight * cos(goal[1])*resolution;
-        // target_marker.pose.position.y = gridHeight * sin(goal[1])*resolution;
-        target_marker.pose.position.z = 0.1;
-        target_marker.pose.orientation.x = 0.0;
-        target_marker.pose.orientation.y = 0.0;
-        target_marker.pose.orientation.z = 0.0;
-        target_marker.pose.orientation.w = 1.0;
-        target_marker.scale.x = 0.2;
-        target_marker.scale.y = 0.2;
-        target_marker.scale.z = 0.2;
-        target_marker.color.a = 1.0;
-        target_marker.color.r = 0.0;
-        target_marker.color.g = 1.0;
-        target_marker.color.b = 0.0;
-        goal_pub_->publish(target_marker);
-        visualize_path(pathfound);
+
+        // ----- NOVIZ --------
+        // target_marker.header.frame_id = "ego_racecar/base_link";;
+        // target_marker.header.stamp = this->get_clock()->now();
+        // target_marker.ns = "target";
+        // target_marker.type = visualization_msgs::msg::Marker::SPHERE;
+        // target_marker.action = visualization_msgs::msg::Marker::ADD;
+        // target_marker.pose.position.x = target[0]*resolution;
+        // target_marker.pose.position.y = target[1]*resolution;
+        // target_marker.pose.position.z = 0.1;
+        // target_marker.pose.orientation.x = 0.0;
+        // target_marker.pose.orientation.y = 0.0;
+        // target_marker.pose.orientation.z = 0.0;
+        // target_marker.pose.orientation.w = 1.0;
+        // target_marker.scale.x = 0.2;
+        // target_marker.scale.y = 0.2;
+        // target_marker.scale.z = 0.2;
+        // target_marker.color.a = 1.0;
+        // target_marker.color.r = 0.0;
+        // target_marker.color.g = 1.0;
+        // target_marker.color.b = 0.0;
+        // goal_pub_->publish(target_marker);
+        // visualize_path(pathfound);
 
         return target;
-
 }
+
 double clamp(double value, double min_value, double max_value) {
         return std::max(min_value, std::min(value, max_value));}
 
@@ -312,14 +307,13 @@ void RRT::pure_pursuit(vector<RRT_Node> &pathfound, const nav_msgs::msg::Odometr
     std::vector<double> target;
     target = select_goal(pathfound, pose);
 
-    // TODO: transform goal point to vehicle frame of reference
-    // double dx = target[0];
+    // Transform goal point to vehicle frame of reference
     double dy = target[1];
     double  gamma = 2*dy / pow(L2,2);
 
     double steer_angle = clamp(PGain*gamma, min_steer, max_steer);
 
-    // TODO: publish drive message, don't forget to limit the steering angle.
+    // Publish drive message, don't forget to limit the steering angle.
     auto drive_msg = ackermann_msgs::msg::AckermannDriveStamped();
     drive_msg.drive.speed = velocity;
     drive_msg.drive.steering_angle = steer_angle;
@@ -365,16 +359,24 @@ void RRT::pose_callback(const nav_msgs::msg::Odometry::ConstSharedPtr pose_msg) 
             min_dist = len;
         }
     }
-    // ensure lookahead distance enforced
-    for(size_t i=closest_index; i<x_traj.size(); i++){
-        len = sqrt(pow((x_traj[i]-curr_x),2) + pow((y_traj[i]-curr_y),2));
+    // Ensure lookahead distance is enforced
+    bool found = false;
+    for (size_t i = closest_index; i < x_traj.size(); ++i) {
+        len = std::sqrt(std::pow(x_traj[i] - curr_x, 2) + std::pow(y_traj[i] - curr_y, 2));
         if (len > L) {
             goal_index = int(i);
+            found = true;
             break;
         }
-        // if (i==x_traj.size()-1){
-        //     i=0;
-        // }
+    }
+    if (!found) { // If not found in the remaining part, loop from the start to the closest_index
+        for (size_t i = 0; i <= closest_index; ++i) {
+            len = std::sqrt(std::pow(x_traj[i] - curr_x, 2) + std::pow(y_traj[i] - curr_y, 2));
+            if (len > L) {
+                goal_index = int(i);
+                break;
+            }
+        }
     }
     
     // transform goal point to vehicle frame of reference
@@ -391,7 +393,7 @@ void RRT::pose_callback(const nav_msgs::msg::Odometry::ConstSharedPtr pose_msg) 
     float scaled_goal_x = float(dx_trans);
     float scaled_goal_y = float(dy_trans);
 
-    visualize_goal(scaled_goal_x, scaled_goal_y); //real world coordinates
+    // visualize_goal(scaled_goal_x, scaled_goal_y); //real world coordinates
 
     // // tree as std::vector
     std::vector<RRT_Node> tree;
@@ -402,7 +404,7 @@ void RRT::pose_callback(const nav_msgs::msg::Odometry::ConstSharedPtr pose_msg) 
     start.parent = 0;
     start.is_root = true;
     
-    // // TODO: fill in the RRT main loop
+    // RRT main loop
     for(int k=0; k<num_samples; k++){
         if(k==0){
             tree.push_back(start);
@@ -451,7 +453,6 @@ void RRT::pose_callback(const nav_msgs::msg::Odometry::ConstSharedPtr pose_msg) 
                         tree[neighbors[i]].parent = tree.size()-1;
                     }
                 }
-
             }
         }
     }  
