@@ -41,7 +41,7 @@ RRT::RRT(): rclcpp::Node("rrt_node"), x_dist(0, gridHeight - 1), y_dist(-gridWid
     viz_timer_ = this->create_wall_timer(5s, std::bind(&RRT::drawLogData, this));
 
     this->declare_parameter<double>("L", 3); //lookahead distance
-    this->declare_parameter<double>("L2", 0.3); //lookahead distance
+    this->declare_parameter<double>("L2", 0.5); //lookahead distance
     this->declare_parameter<double>("p_gain", 0.05);
     this->declare_parameter<double>("max_velocity", 2.0);
     this->declare_parameter<double>("min_velocity", 1);
