@@ -36,14 +36,15 @@ RRT::RRT(): rclcpp::Node("rrt_node"), x_dist(0, gridHeight - 1), y_dist(-gridWid
 
     RCLCPP_INFO(rclcpp::get_logger("RRT"), "%s\n", "Created new RRT Object.");
 
-    string filePath = "/home/moody/f1tenth_ws/waypoints/tunerrt.csv";
+    string filePath = "/home/moody/f1tenth_ws/waypoints/tunerrt_1.csv";
     loadLogData(filePath);
     viz_timer_ = this->create_wall_timer(5s, std::bind(&RRT::drawLogData, this));
 
-    this->declare_parameter<double>("L", 2); //lookahead distance
-    this->declare_parameter<double>("L2", 0.2); //lookahead distance
-    this->declare_parameter<double>("p_gain", 0.3);
-    this->declare_parameter<double>("velocity", 1.0);
+    this->declare_parameter<double>("L", 3); //lookahead distance
+    this->declare_parameter<double>("L2", 0.3); //lookahead distance
+    this->declare_parameter<double>("p_gain", 0.05);
+    this->declare_parameter<double>("max_velocity", 2.0);
+    this->declare_parameter<double>("min_velocity", 1);
     this->declare_parameter<double>("max_steer", 3.14/2);
     this->declare_parameter<double>("min_steer", -3.14/2);
     this->declare_parameter<int>("step_size", 10); //step size for waypoint selection
@@ -53,7 +54,8 @@ RRT::RRT(): rclcpp::Node("rrt_node"), x_dist(0, gridHeight - 1), y_dist(-gridWid
     L = this->get_parameter("L").get_value<double>();
     L2 = this->get_parameter("L2").get_value<double>();
     PGain = this->get_parameter("p_gain").get_value<double>();
-    velocity = this->get_parameter("velocity").get_value<double>();
+    max_velocity = this->get_parameter("max_velocity").get_value<double>();
+    min_velocity = this->get_parameter("min_velocity").get_value<double>();
     max_steer = this->get_parameter("max_steer").get_value<double>();
     min_steer = this->get_parameter("min_steer").get_value<double>();
     step_size = this->get_parameter("step_size").get_value<int>();
@@ -315,9 +317,11 @@ void RRT::pure_pursuit(vector<RRT_Node> &pathfound, const nav_msgs::msg::Odometr
 
     double steer_angle = clamp(PGain*gamma, min_steer, max_steer);
 
+    double adjusted_velocity = min_velocity + (1 - abs(steer_angle/max_steer))*(max_velocity-min_velocity);
+
     // Publish drive message, don't forget to limit the steering angle.
     auto drive_msg = ackermann_msgs::msg::AckermannDriveStamped();
-    drive_msg.drive.speed = velocity;
+    drive_msg.drive.speed = adjusted_velocity;
     drive_msg.drive.steering_angle = steer_angle;
 
     this->drivepub->publish(drive_msg);

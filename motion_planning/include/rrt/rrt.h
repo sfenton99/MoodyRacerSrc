@@ -47,7 +47,7 @@ private:
     //PurePursuit Stuff
     rclcpp::Publisher<ackermann_msgs::msg::AckermannDriveStamped>::SharedPtr drivepub;
     //TUNABLE PARAMETERS
-    // double L = 2; //lookahead distance (initial goal)
+    // double L = 2; //lookahead distance (initial goal) //max should be around 2.5-3 ...... 100*0.05 = 5. so y is [-2.5,2.5] x is [0,5]
     // double L2 = 0.2; //post RRT
     // double PGain = 0.3;
     // double velocity = 1.5;
@@ -57,7 +57,8 @@ private:
     double L; //lookahead distance (initial goal)
     double L2; //post RRT
     double PGain;
-    double velocity;
+    double max_velocity;
+    double min_velocity;
     int step_size; //step size for waypoint selection
     double max_steer;
     double min_steer;
@@ -94,7 +95,7 @@ private:
     vector<RRT_Node>goal_path;
     double radius = 20.0; //radius for rrt star
 
-    const int num_samples = 500; //rrt
+    const int num_samples = 400; //rrt
     const double epsilon = 10; //rrt in grid world
     std::vector<signed char> Occupancy;
     int bufferCells = 8;
