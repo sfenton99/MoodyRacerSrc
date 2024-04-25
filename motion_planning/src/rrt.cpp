@@ -422,12 +422,13 @@ void RRT::pose_callback(const nav_msgs::msg::Odometry::ConstSharedPtr pose_msg) 
         if (!check_collision(tree[x_near_idx], x_new)){
 
             x_new.parent = x_near_idx; //set parent
+            vector<int> neighbors;
+            double min_cost;
             
             // ------ASTAR REWIRE --------
             if(optimize){
-                vector<int> neighbors = near(tree, x_new);
-            
-                double min_cost = cost(tree,tree[x_near_idx]) + line_cost(tree[x_near_idx], x_new);
+                neighbors = near(tree, x_new);
+                min_cost = cost(tree,tree[x_near_idx]) + line_cost(tree[x_near_idx], x_new);
                 double curr_cost;
                     
                 for (size_t i=0; i < neighbors.size(); i++){

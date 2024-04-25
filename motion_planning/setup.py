@@ -1,6 +1,6 @@
 from setuptools import setup
 
-package_name = 'lab6_pkg'
+package_name = 'motion_planning'
 
 setup(
     name=package_name,
