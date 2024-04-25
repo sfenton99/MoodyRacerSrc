@@ -40,22 +40,24 @@ RRT::RRT(): rclcpp::Node("rrt_node"), x_dist(0, gridHeight - 1), y_dist(-gridWid
     loadLogData(filePath);
     viz_timer_ = this->create_wall_timer(5s, std::bind(&RRT::drawLogData, this));
 
-    // this->declare_parameter<double>("L", 2); //lookahead distance
-    // this->declare_parameter<double>("L2", 0.2); //lookahead distance
-    // this->declare_parameter<double>("p_gain", 0.3);
-    // this->declare_parameter<double>("velocity", 1.0);
-    // this->declare_parameter<double>("max_steer", 3.14/2);
-    // this->declare_parameter<double>("min_steer", -3.14/2);
-    // this->declare_parameter<int>("step_size", 10); //step size for waypoint selection
+    this->declare_parameter<double>("L", 2); //lookahead distance
+    this->declare_parameter<double>("L2", 0.2); //lookahead distance
+    this->declare_parameter<double>("p_gain", 0.3);
+    this->declare_parameter<double>("velocity", 1.0);
+    this->declare_parameter<double>("max_steer", 3.14/2);
+    this->declare_parameter<double>("min_steer", -3.14/2);
+    this->declare_parameter<int>("step_size", 10); //step size for waypoint selection
+    this->declare_parameter<bool>("optimize", true); //RRT*
 
-    // // get parameters
-    // L = this->get_parameter("L").get_value<double>();
-    // L2 = this->get_parameter("L2").get_value<double>();
-    // PGain = this->get_parameter("p_gain").get_value<double>();
-    // velocity = this->get_parameter("velocity").get_value<double>();
-    // max_steer = this->get_parameter("max_steer").get_value<double>();
-    // min_steer = this->get_parameter("min_steer").get_value<double>();
-    // step_size = this->get_parameter("step_size").get_value<int>();
+    // get parameters
+    L = this->get_parameter("L").get_value<double>();
+    L2 = this->get_parameter("L2").get_value<double>();
+    PGain = this->get_parameter("p_gain").get_value<double>();
+    velocity = this->get_parameter("velocity").get_value<double>();
+    max_steer = this->get_parameter("max_steer").get_value<double>();
+    min_steer = this->get_parameter("min_steer").get_value<double>();
+    step_size = this->get_parameter("step_size").get_value<int>();
+    optimize = this->get_parameter("optimize").get_value<bool>();
 
 }
 
@@ -422,20 +424,22 @@ void RRT::pose_callback(const nav_msgs::msg::Odometry::ConstSharedPtr pose_msg) 
             x_new.parent = x_near_idx; //set parent
             
             // ------ASTAR REWIRE --------
-            vector<int> neighbors = near(tree, x_new);
-          
-            double min_cost = cost(tree,tree[x_near_idx]) + line_cost(tree[x_near_idx], x_new);
-            double curr_cost;
-                 
-            for (size_t i=0; i < neighbors.size(); i++){
-                if (!check_collision(tree[neighbors[i]], x_new)){
-                    curr_cost = cost(tree, tree[neighbors[i]]) + line_cost(tree[neighbors[i]], x_new);
-                    if (curr_cost < min_cost){
-                        x_new.parent = neighbors[i];
-                        min_cost = curr_cost;
+            if(optimize){
+                vector<int> neighbors = near(tree, x_new);
+            
+                double min_cost = cost(tree,tree[x_near_idx]) + line_cost(tree[x_near_idx], x_new);
+                double curr_cost;
+                    
+                for (size_t i=0; i < neighbors.size(); i++){
+                    if (!check_collision(tree[neighbors[i]], x_new)){
+                        curr_cost = cost(tree, tree[neighbors[i]]) + line_cost(tree[neighbors[i]], x_new);
+                        if (curr_cost < min_cost){
+                            x_new.parent = neighbors[i];
+                            min_cost = curr_cost;
+                        }
                     }
-                }
-            } 
+                } 
+            }
 
             if(is_goal(x_new, goal_x, goal_y)){     //if is goal find path to goal
                 goal_path = find_path(tree, x_new);
@@ -444,13 +448,15 @@ void RRT::pose_callback(const nav_msgs::msg::Odometry::ConstSharedPtr pose_msg) 
                 break;
             }
             tree.push_back(x_new);
+            
+            if (optimize) {
+                for(size_t i=0; i < neighbors.size(); i++){
+                    min_cost = cost(tree, x_new) + line_cost(x_new, tree[neighbors[i]]); //new cost to neighbor
 
-            for(size_t i=0; i < neighbors.size(); i++){
-                min_cost = cost(tree, x_new) + line_cost(x_new, tree[neighbors[i]]); //new cost to neighbor
-
-                if (min_cost < cost (tree, tree[neighbors[i]])){
-                    if(!check_collision(x_new, tree[neighbors[i]])){
-                        tree[neighbors[i]].parent = tree.size()-1;
+                    if (min_cost < cost (tree, tree[neighbors[i]])){
+                        if(!check_collision(x_new, tree[neighbors[i]])){
+                            tree[neighbors[i]].parent = tree.size()-1;
+                        }
                     }
                 }
             }
@@ -515,29 +521,18 @@ RRT_Node RRT::steer(RRT_Node &nearest_node, std::vector<double> &sampled_point) 
     //    new_node (RRT_Node): new node created from steering
 
     RRT_Node new_node;
-    
-    
     if (dist(nearest_node, sampled_point) < epsilon)   
     {   
         new_node.x = sampled_point[0];
         new_node.y = sampled_point[1];
-    
-        if(new_node.x == 0 && new_node.y == 0){
-            cout << "issue is in steer else statement" << endl;
-        }
     }
     else{
         std::vector<double> near_point = {nearest_node.x, nearest_node.y};
-
         vector<double> diff_vector = {sampled_point[0] - near_point[0], sampled_point[1] - near_point[1]};
         float norm_of_diff_vector = dist(nearest_node, sampled_point);
         vector<double> unit_diff_vector = {diff_vector[0]/norm_of_diff_vector, diff_vector[1]/norm_of_diff_vector};
         new_node.x = unit_diff_vector[0]*epsilon + near_point[0];
         new_node.y = unit_diff_vector[1]*epsilon + near_point[1];
-
-        if(new_node.x == 0 && new_node.y == 0){
-            cout << "issue is in steer else statement" << endl;
-        }
     }
 
     return new_node;
@@ -546,11 +541,9 @@ bool RRT::is_occupied(int &x, int &y){
     int new_y = y + gridHeight/2;
     if(x < gridWidth && x >= 0 && new_y >= 0 && new_y < gridHeight){
     if (Occupancy[x + gridWidth*new_y] > 50){
-        // cout << "(" << x*resolution << "," << y*resolution << ") occupied" << endl;
         return true;
     }
     else{
-        // cout << "(" << x*resolution << "," << y*resolution << ") free" << endl;
         return false;
     }
     }
@@ -627,7 +620,6 @@ bool RRT::is_goal(RRT_Node &latest_added_node, double goal_x, double goal_y) {
     if (dist(latest_added_node, objective) <= epsilon){
         close_enough = true;
     }
-
     return close_enough;
 }
 
@@ -644,13 +636,11 @@ std::vector<RRT_Node> RRT::find_path(std::vector<RRT_Node> &tree, RRT_Node &late
     std::vector<RRT_Node> found_path;
     RRT_Node current_node = latest_added_node;
     found_path.push_back(current_node);
-
     // TODO: fill in this method
     while(!current_node.is_root){
         current_node = tree[current_node.parent];
         found_path.push_back(current_node);
     }
-  
     std::reverse(found_path.begin(), found_path.end());
     return found_path;
 }
