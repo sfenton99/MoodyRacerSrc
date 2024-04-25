@@ -40,6 +40,23 @@ RRT::RRT(): rclcpp::Node("rrt_node"), x_dist(0, gridHeight - 1), y_dist(-gridWid
     loadLogData(filePath);
     viz_timer_ = this->create_wall_timer(5s, std::bind(&RRT::drawLogData, this));
 
+    // this->declare_parameter<double>("L", 2); //lookahead distance
+    // this->declare_parameter<double>("L2", 0.2); //lookahead distance
+    // this->declare_parameter<double>("p_gain", 0.3);
+    // this->declare_parameter<double>("velocity", 1.0);
+    // this->declare_parameter<double>("max_steer", 3.14/2);
+    // this->declare_parameter<double>("min_steer", -3.14/2);
+    // this->declare_parameter<int>("step_size", 10); //step size for waypoint selection
+
+    // // get parameters
+    // L = this->get_parameter("L").get_value<double>();
+    // L2 = this->get_parameter("L2").get_value<double>();
+    // PGain = this->get_parameter("p_gain").get_value<double>();
+    // velocity = this->get_parameter("velocity").get_value<double>();
+    // max_steer = this->get_parameter("max_steer").get_value<double>();
+    // min_steer = this->get_parameter("min_steer").get_value<double>();
+    // step_size = this->get_parameter("step_size").get_value<int>();
+
 }
 
 void RRT::loadLogData(const std::string filePath){
@@ -186,7 +203,7 @@ void RRT::scan_callback(const sensor_msgs::msg::LaserScan::ConstSharedPtr scan_m
     grid_msg.info.origin.position.y = -(gridWidth*resolution)/2;
     grid_msg.info.origin.position.z = 0.1;
     grid_msg.header.stamp = this->get_clock()->now();
-    grid_pub_->publish(grid_msg);
+    // grid_pub_->publish(grid_msg);
     Occupancy.clear();
     
 }
@@ -355,6 +372,9 @@ void RRT::pose_callback(const nav_msgs::msg::Odometry::ConstSharedPtr pose_msg) 
             goal_index = int(i);
             break;
         }
+        // if (i==x_traj.size()-1){
+        //     i=0;
+        // }
     }
     
     // transform goal point to vehicle frame of reference

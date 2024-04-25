@@ -54,6 +54,13 @@ private:
     int step_size = 10; //step size for waypoint selection
     double max_steer = 3.14/2;
     double min_steer = -3.14/2;
+    // double L; //lookahead distance (initial goal)
+    // double L2; //post RRT
+    // double PGain;
+    // double velocity;
+    // int step_size; //step size for waypoint selection
+    // double max_steer;
+    // double min_steer;
     void pure_pursuit(vector<RRT_Node> &path_found, const nav_msgs::msg::Odometry::ConstPtr &pose_msg);
     std::vector<double> select_goal(vector<RRT_Node> &pathfound, const geometry_msgs::msg::Pose &pose_curr);
 
