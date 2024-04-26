@@ -17,7 +17,22 @@ RRT::RRT(): rclcpp::Node("rrt_node"), x_dist(0, gridHeight - 1), y_dist(-gridWid
     // TODO: create publishers for the the drive topic, and other topics you might need
     // ROS subscribers
     // TODO: create subscribers as you needf
-    string pose_topic = "/ego_racecar/odom";
+    string pose_topic, filePath;
+    realcar = false;
+    
+    if (realcar)
+    {
+        pose_topic = "/pf/viz/inferred_pose";
+        filePath = "/home/moody/f1tenth_ws/waypoints/tunerrt_1.csv";
+        pose_sub_ = this->create_subscription<geometry_msgs::msg::PoseStamped>(
+            pose_topic, 1, std::bind(&RRT::pose_callback, this, std::placeholders::_1));
+    }
+    else{
+        pose_topic = "/ego_racecar/odom";
+        filePath = "/root/sim_ws/src/logs/tunerrt.csv";
+        pose_sub_sim_ = this->create_subscription<nav_msgs::msg::Odometry>(
+            pose_topic, 1, std::bind(&RRT::pose_callback_sim, this, std::placeholders::_1));
+    }
     string scan_topic = "/scan";
     string occupancy_topic = "/local_occupancy_map";
     string goal_topic = "/vis_goal";
@@ -29,21 +44,19 @@ RRT::RRT(): rclcpp::Node("rrt_node"), x_dist(0, gridHeight - 1), y_dist(-gridWid
     grid_pub_ = this->create_publisher<nav_msgs::msg::OccupancyGrid>(occupancy_topic, 10);
     pathpub = this->create_publisher<visualization_msgs::msg::MarkerArray>(traj_topic,10);
 
-    pose_sub_ = this->create_subscription<nav_msgs::msg::Odometry>(
-      pose_topic, 1, std::bind(&RRT::pose_callback, this, std::placeholders::_1));
     scan_sub_ = this->create_subscription<sensor_msgs::msg::LaserScan>(
       scan_topic, 1, std::bind(&RRT::scan_callback, this, std::placeholders::_1));
 
     RCLCPP_INFO(rclcpp::get_logger("RRT"), "%s\n", "Created new RRT Object.");
+
     
-    string filePath = "/root/sim_ws/src/logs/tunerrt.csv";
     loadLogData(filePath);
     viz_timer_ = this->create_wall_timer(5s, std::bind(&RRT::drawLogData, this));
 
     this->declare_parameter<double>("L", 2); //lookahead distance
     this->declare_parameter<double>("L2", 0.2); //lookahead distance
     this->declare_parameter<double>("p_gain", 0.1);
-    this->declare_parameter<double>("max_velocity", 1.5);
+    this->declare_parameter<double>("max_velocity", 2);
     this->declare_parameter<double>("min_velocity", 1);
     this->declare_parameter<double>("max_steer", 3.14/2);
     this->declare_parameter<double>("min_steer", -3.14/2);
@@ -66,90 +79,90 @@ RRT::RRT(): rclcpp::Node("rrt_node"), x_dist(0, gridHeight - 1), y_dist(-gridWid
 }
 
 void RRT::loadLogData(const std::string filePath){
-        // read in file
-        std::ifstream file(filePath);
+    // read in file
+    std::ifstream file(filePath);
 
-        if(!file.is_open()) {
-            RCLCPP_ERROR(this->get_logger(), "Failed to open log file: %s", filePath.c_str());
-            return;
-        }
-        std::string row;
-        while(std::getline(file, row)) {
-            std::stringstream ss(row);
-
-            // deliminater ','
-            std::string value;
-            if (getline(ss, value, ',')) {
-                x_traj.push_back(std::stod(value));
-            }
-            if (getline(ss, value, ',')) {
-                y_traj.push_back(std::stod(value));
-            }
-            if (getline(ss, value, ',')) {
-                yaw_traj.push_back(std::stod(value));
-            }
-        }
-        file.close();
-        std::cout << "--- Sucessfully loaded data from log " << std::endl;
+    if(!file.is_open()) {
+        RCLCPP_ERROR(this->get_logger(), "Failed to open log file: %s", filePath.c_str());
+        return;
     }
+    std::string row;
+    while(std::getline(file, row)) {
+        std::stringstream ss(row);
+
+        // deliminater ','
+        std::string value;
+        if (getline(ss, value, ',')) {
+            x_traj.push_back(std::stod(value));
+        }
+        if (getline(ss, value, ',')) {
+            y_traj.push_back(std::stod(value));
+        }
+        if (getline(ss, value, ',')) {
+            yaw_traj.push_back(std::stod(value));
+        }
+    }
+    file.close();
+    std::cout << "--- Sucessfully loaded data from log " << std::endl;
+}
 
 void RRT::drawLogData(){ 
     for(size_t i=0; i<x_traj.size(); i+=step_size){
-            visualization_msgs::msg::Marker path_point;
-            path_point.header.frame_id = "map";
-            path_point.header.stamp = this->get_clock()->now();
-            path_point.ns = "path";
-            path_point.id = i;
-            path_point.type = visualization_msgs::msg::Marker::SPHERE;
-            path_point.action = visualization_msgs::msg::Marker::ADD;
-            path_point.pose.position.x = x_traj[i];
-            path_point.pose.position.y = y_traj[i];
-            path_point.pose.position.z = 0;
-            path_point.pose.orientation.x = 0.0;
-            path_point.pose.orientation.y = 0.0;
-            path_point.pose.orientation.z = 0.0;
-            path_point.pose.orientation.w = 1.0;
-            path_point.scale.x = 0.05;
-            path_point.scale.y = 0.05;
-            path_point.scale.z = 0.05;
-            path_point.color.a = 1.0;
-            path_point.color.r = 0.0;
-            path_point.color.g = 0.0;
-            path_point.color.b = 1.0;
+        visualization_msgs::msg::Marker path_point;
+        path_point.header.frame_id = "map";
+        path_point.header.stamp = this->get_clock()->now();
+        path_point.ns = "path";
+        path_point.id = i;
+        path_point.type = visualization_msgs::msg::Marker::SPHERE;
+        path_point.action = visualization_msgs::msg::Marker::ADD;
+        path_point.pose.position.x = x_traj[i];
+        path_point.pose.position.y = y_traj[i];
+        path_point.pose.position.z = 0;
+        path_point.pose.orientation.x = 0.0;
+        path_point.pose.orientation.y = 0.0;
+        path_point.pose.orientation.z = 0.0;
+        path_point.pose.orientation.w = 1.0;
+        path_point.scale.x = 0.05;
+        path_point.scale.y = 0.05;
+        path_point.scale.z = 0.05;
+        path_point.color.a = 1.0;
+        path_point.color.r = 0.0;
+        path_point.color.g = 0.0;
+        path_point.color.b = 1.0;
 
-            loaded_trajectory.markers.push_back(path_point);
-        }
-        pathpub->publish(loaded_trajectory);
-        std::cout << "--- loaded data visualized " << std::endl;
-        loaded_trajectory.markers.clear();
+        loaded_trajectory.markers.push_back(path_point);
+    }
+    pathpub->publish(loaded_trajectory);
+    std::cout << "--- loaded data visualized " << std::endl;
+    loaded_trajectory.markers.clear();
 }
 
 vector<float> preprocess_lidar(const sensor_msgs::msg::LaserScan::ConstSharedPtr scan_msg){
 
-        std::vector<float> filteredData;
-        int window_size = 0;
-        float max_range = 100.0;
-        //moving average filter
-        if(int(scan_msg->ranges.size()) < window_size || window_size < 1) {
-            return scan_msg->ranges;
-        }
-        double sum = 0.0;
-        for(size_t i=0; i < scan_msg->ranges.size(); i++){
-            sum +=scan_msg->ranges[i];
-            if (int(i) >= window_size) {
-                sum -= scan_msg->ranges[i - window_size]; //remove elements leaving the window
-            }
-            //Partial window for indices < window size
-            filteredData.push_back(sum / std::min(int(i+1), window_size));
-        }
-        //smoothing max and sparse measurements
-        for(size_t i=0; i < filteredData.size(); i++){
-            if (std::isnan(filteredData[i]) || std::isinf(filteredData[i] || filteredData[i] > max_range)){
-                filteredData[i] = max_range; //large number
-            }
-        }
-        return filteredData;
+    std::vector<float> filteredData;
+    int window_size = 0;
+    float max_range = 100.0;
+    //moving average filter
+    if(int(scan_msg->ranges.size()) < window_size || window_size < 1) {
+        return scan_msg->ranges;
     }
+    double sum = 0.0;
+    for(size_t i=0; i < scan_msg->ranges.size(); i++){
+        sum +=scan_msg->ranges[i];
+        if (int(i) >= window_size) {
+            sum -= scan_msg->ranges[i - window_size]; //remove elements leaving the window
+        }
+        //Partial window for indices < window size
+        filteredData.push_back(sum / std::min(int(i+1), window_size));
+    }
+    //smoothing max and sparse measurements
+    for(size_t i=0; i < filteredData.size(); i++){
+        if (std::isnan(filteredData[i]) || std::isinf(filteredData[i] || filteredData[i] > max_range)){
+            filteredData[i] = max_range; //large number
+        }
+    }
+    return filteredData;
+}
 
 
 double dist(RRT_Node &node, std::vector<double> &sampled_point) {
@@ -198,19 +211,21 @@ void RRT::scan_callback(const sensor_msgs::msg::LaserScan::ConstSharedPtr scan_m
         }
     }
 
-
-    // ----- NOVIZ --------
-    nav_msgs::msg::OccupancyGrid grid_msg;
-    grid_msg.data = Occupancy;
-    string frame = "ego_racecar/base_link";
-    grid_msg.header.frame_id = frame;
-    grid_msg.info.width = gridWidth;
-    grid_msg.info.height = gridHeight;
-    grid_msg.info.resolution = resolution;  //can change later if not fast enough
-    grid_msg.info.origin.position.y = -(gridWidth*resolution)/2;
-    grid_msg.info.origin.position.z = 0.1;
-    grid_msg.header.stamp = this->get_clock()->now();
-    grid_pub_->publish(grid_msg);
+    if (!realcar){
+        // ----- NOVIZ --------
+        nav_msgs::msg::OccupancyGrid grid_msg;
+        grid_msg.data = Occupancy;
+        string frame = "ego_racecar/base_link";
+        grid_msg.header.frame_id = frame;
+        grid_msg.info.width = gridWidth;
+        grid_msg.info.height = gridHeight;
+        grid_msg.info.resolution = resolution; // can change later if not fast enough
+        grid_msg.info.origin.position.y = -(gridWidth * resolution) / 2;
+        grid_msg.info.origin.position.z = 0.1;
+        grid_msg.header.stamp = this->get_clock()->now();
+        grid_pub_->publish(grid_msg);
+    }
+    
 
     Occupancy.clear();
 }
@@ -263,29 +278,33 @@ void RRT::visualize_path(vector<RRT_Node> &pathfound){
         path_marker.points.clear(); 
 }
 
-std::vector<double> RRT::select_goal(vector<RRT_Node> &pathfound, const geometry_msgs::msg::Pose &pose_curr){
-        int goal_index;
-        size_t closest_index;
-        double min_dist = 1000;
-        double len;
-        // ensure lookahead distance enforced remove curr pose
-        for(size_t i=0; i<pathfound.size(); i++){
-            len = sqrt(pow((pathfound[i].x* resolution),2) + pow((pathfound[i].y* resolution),2));
-            if (len > L2) {
-                goal_index = int(i);
-                break;
-            }
+std::vector<double> RRT::select_goal(vector<RRT_Node> &pathfound, const geometry_msgs::msg::Pose &pose_curr)
+{
+    int goal_index;
+    size_t closest_index;
+    double min_dist = 1000;
+    double len;
+    // ensure lookahead distance enforced remove curr pose
+    for (size_t i = 0; i < pathfound.size(); i++)
+    {
+        len = sqrt(pow((pathfound[i].x * resolution), 2) + pow((pathfound[i].y * resolution), 2));
+        if (len > L2)
+        {
+            goal_index = int(i);
+            break;
         }
-        std::vector<double> target = {pathfound[goal_index].x, pathfound[goal_index].y};
+    }
+    std::vector<double> target = {pathfound[goal_index].x, pathfound[goal_index].y};
 
+    if (!realcar){
         // ----- NOVIZ --------
-        target_marker.header.frame_id = "ego_racecar/base_link";;
+        target_marker.header.frame_id = "ego_racecar/base_link";
         target_marker.header.stamp = this->get_clock()->now();
         target_marker.ns = "target";
         target_marker.type = visualization_msgs::msg::Marker::SPHERE;
         target_marker.action = visualization_msgs::msg::Marker::ADD;
-        target_marker.pose.position.x = target[0]*resolution;
-        target_marker.pose.position.y = target[1]*resolution;
+        target_marker.pose.position.x = target[0] * resolution;
+        target_marker.pose.position.y = target[1] * resolution;
         target_marker.pose.position.z = 0.1;
         target_marker.pose.orientation.x = 0.0;
         target_marker.pose.orientation.y = 0.0;
@@ -300,6 +319,53 @@ std::vector<double> RRT::select_goal(vector<RRT_Node> &pathfound, const geometry
         target_marker.color.b = 0.0;
         goal_pub_->publish(target_marker);
         visualize_path(pathfound);
+    }
+    
+
+    return target;
+}
+
+std::vector<double> RRT::select_goal(vector<RRT_Node> &pathfound){
+        int goal_index;
+        size_t closest_index;
+        double min_dist = 1000;
+        double len;
+        // ensure lookahead distance enforced remove curr pose
+        for(size_t i=0; i<pathfound.size(); i++){
+            len = sqrt(pow((pathfound[i].x* resolution),2) + pow((pathfound[i].y* resolution),2));
+            if (len > L2) {
+                goal_index = int(i);
+                break;
+            }
+        }
+        std::vector<double> target = {pathfound[goal_index].x, pathfound[goal_index].y};
+
+        if(!realcar){
+            // ----- NOVIZ --------
+            target_marker.header.frame_id = "ego_racecar/base_link";
+            ;
+            target_marker.header.stamp = this->get_clock()->now();
+            target_marker.ns = "target";
+            target_marker.type = visualization_msgs::msg::Marker::SPHERE;
+            target_marker.action = visualization_msgs::msg::Marker::ADD;
+            target_marker.pose.position.x = target[0] * resolution;
+            target_marker.pose.position.y = target[1] * resolution;
+            target_marker.pose.position.z = 0.1;
+            target_marker.pose.orientation.x = 0.0;
+            target_marker.pose.orientation.y = 0.0;
+            target_marker.pose.orientation.z = 0.0;
+            target_marker.pose.orientation.w = 1.0;
+            target_marker.scale.x = 0.2;
+            target_marker.scale.y = 0.2;
+            target_marker.scale.z = 0.2;
+            target_marker.color.a = 1.0;
+            target_marker.color.r = 0.0;
+            target_marker.color.g = 1.0;
+            target_marker.color.b = 0.0;
+            goal_pub_->publish(target_marker);
+            visualize_path(pathfound);
+        }
+        
 
         return target;
 }
@@ -307,10 +373,32 @@ std::vector<double> RRT::select_goal(vector<RRT_Node> &pathfound, const geometry
 double clamp(double value, double min_value, double max_value) {
         return std::max(min_value, std::min(value, max_value));}
 
-void RRT::pure_pursuit(vector<RRT_Node> &pathfound, const nav_msgs::msg::Odometry::ConstPtr &pose_msg){
+void RRT::pure_pursuit(vector<RRT_Node> &pathfound, const nav_msgs::msg::Odometry::ConstPtr &pose_msg)
+{
     auto pose = pose_msg->pose.pose;
     std::vector<double> target;
     target = select_goal(pathfound, pose);
+
+    // Transform goal point to vehicle frame of reference
+    double dy = target[1];
+    double gamma = 2 * dy / pow(L2, 2);
+
+    double steer_angle = clamp(PGain * gamma, min_steer, max_steer);
+
+    double adjusted_velocity = min_velocity + (1 - abs(steer_angle / max_steer)) * (max_velocity - min_velocity);
+
+    // Publish drive message, don't forget to limit the steering angle.
+    auto drive_msg = ackermann_msgs::msg::AckermannDriveStamped();
+    drive_msg.drive.speed = adjusted_velocity;
+    drive_msg.drive.steering_angle = steer_angle;
+
+    this->drivepub->publish(drive_msg);
+}
+
+void RRT::pure_pursuit(vector<RRT_Node> &pathfound, const geometry_msgs::msg::PoseStamped::ConstPtr &pose_msg){
+    auto pose = pose_msg->pose;
+    std::vector<double> target;
+    target = select_goal(pathfound);
 
     // Transform goal point to vehicle frame of reference
     double dy = target[1];
@@ -328,6 +416,7 @@ void RRT::pure_pursuit(vector<RRT_Node> &pathfound, const nav_msgs::msg::Odometr
     this->drivepub->publish(drive_msg);
 
 }
+
 double quaternionToYaw(const geometry_msgs::msg::Quaternion& quaternion) {
     tf2::Quaternion q(
         quaternion.x,
@@ -341,16 +430,168 @@ double quaternionToYaw(const geometry_msgs::msg::Quaternion& quaternion) {
     m.getRPY(roll, pitch, yaw);
 
     return yaw;
-    }
+}
 
-void RRT::pose_callback(const nav_msgs::msg::Odometry::ConstSharedPtr pose_msg) {
+void RRT::pose_callback(const geometry_msgs::msg::PoseStamped::ConstSharedPtr pose_msg)
+{
     // The pose callback when subscribed to particle filter's inferred pose
     // The RRT main loop happens here
     // Args:
     //    pose_msg (*PoseStamped): pointer to the incoming pose message
     // Returns:
     //
-    //restrict to max distance
+    // restrict to max distance
+    // std::cout << "HERE" << endl;
+    int goal_index;
+    size_t closest_index;
+    double curr_x = pose_msg->pose.position.x;
+    double curr_y = pose_msg->pose.position.y;
+    double min_dist = 1000;
+    double len;
+
+    // find closest point
+    for (size_t i = 0; i < x_traj.size(); i += step_size)
+    {
+        len = sqrt(pow((x_traj[i] - curr_x), 2) + pow((y_traj[i] - curr_y), 2));
+        if (len < min_dist)
+        {
+            closest_index = i;
+            min_dist = len;
+        }
+    }
+    // Ensure lookahead distance is enforced
+    bool found = false;
+    for (size_t i = closest_index; i < x_traj.size(); ++i)
+    {
+        len = std::sqrt(std::pow(x_traj[i] - curr_x, 2) + std::pow(y_traj[i] - curr_y, 2));
+        if (len > L)
+        {
+            goal_index = int(i);
+            found = true;
+            break;
+        }
+    }
+    if (!found)
+    { // If not found in the remaining part, loop from the start to the closest_index
+        for (size_t i = 0; i <= closest_index; ++i)
+        {
+            len = std::sqrt(std::pow(x_traj[i] - curr_x, 2) + std::pow(y_traj[i] - curr_y, 2));
+            if (len > L)
+            {
+                goal_index = int(i);
+                break;
+            }
+        }
+    }
+
+    // transform goal point to vehicle frame of reference
+    double dx = x_traj[goal_index] - curr_x;
+    double dy = y_traj[goal_index] - curr_y;
+    double yaw = quaternionToYaw(pose_msg->pose.orientation);
+    double dx_trans = dx * cos(yaw) + dy * sin(yaw);
+    double dy_trans = -dx * sin(yaw) + dy * cos(yaw);
+
+    goal_path.clear();
+
+    float goal_x = dx_trans / resolution;
+    float goal_y = dy_trans / resolution;
+    // float scaled_goal_x = float(dx_trans);
+    // float scaled_goal_y = float(dy_trans);
+
+    // visualize_goal(scaled_goal_x, scaled_goal_y); //real world coordinates
+
+    // // tree as std::vector
+    std::vector<RRT_Node> tree;
+
+    RRT_Node start;
+    start.x = 0;
+    start.y = 0;
+    start.parent = 0;
+    start.is_root = true;
+
+    // RRT main loop
+    for (int k = 0; k < num_samples; k++)
+    {
+        if (k == 0)
+        {
+            tree.push_back(start);
+        }
+        // sample new point
+        std::vector<double> x_rand = sample();
+        if (k % 20 == 0)
+        {
+            x_rand = {double(goal_x), double(goal_y)};
+        }
+
+        // find nearest member in tree
+        int x_near_idx = nearest(tree, x_rand); // test next
+        // create new node
+        RRT_Node x_new = steer(tree[x_near_idx], x_rand);
+        x_new.is_root = false;
+        if (!check_collision(tree[x_near_idx], x_new))
+        {
+
+            x_new.parent = x_near_idx; // set parent
+            vector<int> neighbors;
+            double min_cost;
+
+            // ------ASTAR REWIRE --------
+            if (optimize)
+            {
+                neighbors = near(tree, x_new);
+                min_cost = cost(tree, tree[x_near_idx]) + line_cost(tree[x_near_idx], x_new);
+                double curr_cost;
+
+                for (size_t i = 0; i < neighbors.size(); i++)
+                {
+                    if (!check_collision(tree[neighbors[i]], x_new))
+                    {
+                        curr_cost = cost(tree, tree[neighbors[i]]) + line_cost(tree[neighbors[i]], x_new);
+                        if (curr_cost < min_cost)
+                        {
+                            x_new.parent = neighbors[i];
+                            min_cost = curr_cost;
+                        }
+                    }
+                }
+            }
+
+            if (is_goal(x_new, goal_x, goal_y))
+            { // if is goal find path to goal
+                goal_path = find_path(tree, x_new);
+                pure_pursuit(goal_path, pose_msg);
+                tree.clear();
+                break;
+            }
+            tree.push_back(x_new);
+
+            if (optimize)
+            {
+                for (size_t i = 0; i < neighbors.size(); i++)
+                {
+                    min_cost = cost(tree, x_new) + line_cost(x_new, tree[neighbors[i]]); // new cost to neighbor
+
+                    if (min_cost < cost(tree, tree[neighbors[i]]))
+                    {
+                        if (!check_collision(x_new, tree[neighbors[i]]))
+                        {
+                            tree[neighbors[i]].parent = tree.size() - 1;
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+void RRT::pose_callback_sim(const nav_msgs::msg::Odometry::ConstSharedPtr pose_msg)
+{
+    // The pose callback when subscribed to particle filter's inferred pose
+    // The RRT main loop happens here
+    // Args:
+    //    pose_msg (*PoseStamped): pointer to the incoming pose message
+    // Returns:
+    //
+    // restrict to max distance
     // std::cout << "HERE" << endl;
     int goal_index;
     size_t closest_index;
@@ -360,44 +601,51 @@ void RRT::pose_callback(const nav_msgs::msg::Odometry::ConstSharedPtr pose_msg) 
     double len;
 
     // find closest point
-    for(size_t i=0; i<x_traj.size(); i+=step_size){
-        len = sqrt(pow((x_traj[i]-curr_x),2) + pow((y_traj[i]-curr_y),2));
-        if (len < min_dist) {
+    for (size_t i = 0; i < x_traj.size(); i += step_size)
+    {
+        len = sqrt(pow((x_traj[i] - curr_x), 2) + pow((y_traj[i] - curr_y), 2));
+        if (len < min_dist)
+        {
             closest_index = i;
             min_dist = len;
         }
     }
     // Ensure lookahead distance is enforced
     bool found = false;
-    for (size_t i = closest_index; i < x_traj.size(); ++i) {
+    for (size_t i = closest_index; i < x_traj.size(); ++i)
+    {
         len = std::sqrt(std::pow(x_traj[i] - curr_x, 2) + std::pow(y_traj[i] - curr_y, 2));
-        if (len > L) {
+        if (len > L)
+        {
             goal_index = int(i);
             found = true;
             break;
         }
     }
-    if (!found) { // If not found in the remaining part, loop from the start to the closest_index
-        for (size_t i = 0; i <= closest_index; ++i) {
+    if (!found)
+    { // If not found in the remaining part, loop from the start to the closest_index
+        for (size_t i = 0; i <= closest_index; ++i)
+        {
             len = std::sqrt(std::pow(x_traj[i] - curr_x, 2) + std::pow(y_traj[i] - curr_y, 2));
-            if (len > L) {
+            if (len > L)
+            {
                 goal_index = int(i);
                 break;
             }
         }
     }
-    
+
     // transform goal point to vehicle frame of reference
     double dx = x_traj[goal_index] - curr_x;
     double dy = y_traj[goal_index] - curr_y;
     double yaw = quaternionToYaw(pose_msg->pose.pose.orientation);
-    double dx_trans = dx*cos(yaw) + dy*sin(yaw);
-    double dy_trans = -dx*sin(yaw) + dy*cos(yaw);
+    double dx_trans = dx * cos(yaw) + dy * sin(yaw);
+    double dy_trans = -dx * sin(yaw) + dy * cos(yaw);
 
     goal_path.clear();
 
-    float goal_x = dx_trans/resolution;
-    float goal_y = dy_trans/resolution;
+    float goal_x = dx_trans / resolution;
+    float goal_y = dy_trans / resolution;
     float scaled_goal_x = float(dx_trans);
     float scaled_goal_y = float(dy_trans);
 
@@ -411,10 +659,12 @@ void RRT::pose_callback(const nav_msgs::msg::Odometry::ConstSharedPtr pose_msg) 
     start.y = 0;
     start.parent = 0;
     start.is_root = true;
-    
+
     // RRT main loop
-    for(int k=0; k<num_samples; k++){
-        if(k==0){
+    for (int k = 0; k < num_samples; k++)
+    {
+        if (k == 0)
+        {
             tree.push_back(start);
         }
         // sample new point
@@ -425,52 +675,61 @@ void RRT::pose_callback(const nav_msgs::msg::Odometry::ConstSharedPtr pose_msg) 
         // create new node
         RRT_Node x_new = steer(tree[x_near_idx], x_rand);
         x_new.is_root = false;
-        if (!check_collision(tree[x_near_idx], x_new)){
+        if (!check_collision(tree[x_near_idx], x_new))
+        {
 
-            x_new.parent = x_near_idx; //set parent
+            x_new.parent = x_near_idx; // set parent
             vector<int> neighbors;
             double min_cost;
-            
+
             // ------ASTAR REWIRE --------
-            if(optimize){
+            if (optimize)
+            {
                 neighbors = near(tree, x_new);
-                min_cost = cost(tree,tree[x_near_idx]) + line_cost(tree[x_near_idx], x_new);
+                min_cost = cost(tree, tree[x_near_idx]) + line_cost(tree[x_near_idx], x_new);
                 double curr_cost;
-                    
-                for (size_t i=0; i < neighbors.size(); i++){
-                    if (!check_collision(tree[neighbors[i]], x_new)){
+
+                for (size_t i = 0; i < neighbors.size(); i++)
+                {
+                    if (!check_collision(tree[neighbors[i]], x_new))
+                    {
                         curr_cost = cost(tree, tree[neighbors[i]]) + line_cost(tree[neighbors[i]], x_new);
-                        if (curr_cost < min_cost){
+                        if (curr_cost < min_cost)
+                        {
                             x_new.parent = neighbors[i];
                             min_cost = curr_cost;
                         }
                     }
-                } 
+                }
             }
 
-            if(is_goal(x_new, goal_x, goal_y)){     //if is goal find path to goal
+            if (is_goal(x_new, goal_x, goal_y))
+            { // if is goal find path to goal
                 goal_path = find_path(tree, x_new);
                 pure_pursuit(goal_path, pose_msg);
                 tree.clear();
                 break;
             }
             tree.push_back(x_new);
-            
-            if (optimize) {
-                for(size_t i=0; i < neighbors.size(); i++){
-                    min_cost = cost(tree, x_new) + line_cost(x_new, tree[neighbors[i]]); //new cost to neighbor
 
-                    if (min_cost < cost (tree, tree[neighbors[i]])){
-                        if(!check_collision(x_new, tree[neighbors[i]])){
-                            tree[neighbors[i]].parent = tree.size()-1;
+            if (optimize)
+            {
+                for (size_t i = 0; i < neighbors.size(); i++)
+                {
+                    min_cost = cost(tree, x_new) + line_cost(x_new, tree[neighbors[i]]); // new cost to neighbor
+
+                    if (min_cost < cost(tree, tree[neighbors[i]]))
+                    {
+                        if (!check_collision(x_new, tree[neighbors[i]]))
+                        {
+                            tree[neighbors[i]].parent = tree.size() - 1;
                         }
                     }
                 }
             }
         }
-    }  
+    }
 }
-
 std::vector<double> RRT::sample() {
     // This method returns a sampled point from the free space
     // You should restrict so that it only samples a small region

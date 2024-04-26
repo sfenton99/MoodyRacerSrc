@@ -63,9 +63,12 @@ private:
     double max_steer;
     double min_steer;
     bool optimize;
-    void pure_pursuit(vector<RRT_Node> &path_found, const nav_msgs::msg::Odometry::ConstPtr &pose_msg);
+    void pure_pursuit(vector<RRT_Node> &path_found, const geometry_msgs::msg::PoseStamped::ConstPtr &pose_msg);
+    void pure_pursuit(vector<RRT_Node> &pathfound, const nav_msgs::msg::Odometry::ConstPtr &pose_msg);
+    std::vector<double> select_goal(vector<RRT_Node> &pathfound);
     std::vector<double> select_goal(vector<RRT_Node> &pathfound, const geometry_msgs::msg::Pose &pose_curr);
 
+    bool realcar;
 
     // TODO: add the publishers and subscribers you need
     visualization_msgs::msg::Marker goal_point = visualization_msgs::msg::Marker();
@@ -78,7 +81,8 @@ private:
     rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr pathpub;
     rclcpp::TimerBase::SharedPtr viz_timer_;
 
-    rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr pose_sub_;
+    rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr pose_sub_;
+    rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr pose_sub_sim_;
     rclcpp::Subscription<sensor_msgs::msg::LaserScan>::SharedPtr scan_sub_;
     vector<double> x_traj;
     vector<double> y_traj;
@@ -98,7 +102,7 @@ private:
     const int num_samples = 400; //rrt
     const double epsilon = 10; //rrt in grid world
     std::vector<signed char> Occupancy;
-    int bufferCells = 2;
+    int bufferCells = 4;
 
     // random generator, use this
     std::mt19937 gen;
@@ -112,7 +116,8 @@ private:
     void visualize_path(vector<RRT_Node> &path_found);
     // callbacks
     // where rrt actually happens
-    void pose_callback(const nav_msgs::msg::Odometry::ConstSharedPtr pose_msg);
+    void pose_callback(const geometry_msgs::msg::PoseStamped::ConstSharedPtr pose_msg);
+    void pose_callback_sim(const nav_msgs::msg::Odometry::ConstSharedPtr pose_msg);
 
     // updates occupancy grid
     void scan_callback(const sensor_msgs::msg::LaserScan::ConstSharedPtr scan_msg);
